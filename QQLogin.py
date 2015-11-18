@@ -52,6 +52,7 @@ class QQ:
         self.__groupSig_list = {}
         self.__self_info = {}
 
+        self.msg_id = int(random.randint(1111, 8888) * 10000)
         self.client_id = int(random.uniform(111111, 888888))
         self.ptwebqq = ''
         self.psessionid = ''
@@ -219,8 +220,7 @@ class QQ:
 
         # 调用后进入单次轮询，等待服务器发回状态。
         html = self.req.Post('http://d.web2.qq.com/channel/poll2', {
-            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq,
-                                                                                         self.client_id)
+            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq,self.client_id)
         }, self.default_config.conf.get("global", "connect_referer"))
         logging.debug("check_msg html:  " + str(html))
         try:
@@ -260,6 +260,9 @@ class QQ:
                         sess_list.append(SessMsg(msg))
                     elif ret_type == 'input_notify':
                         notify_list.append(InputNotify(msg))
+                    elif ret_type == 'sys_g_msg':
+                        if msg['value'] and msg['value']['type'] == 'group_request_join':
+                            notify_list.append(GroupAddMessage(msg))
                     elif ret_code == 'kick_message':
                         notify_list.append(KickMessage(msg))
                     else:
@@ -397,7 +400,8 @@ class QQ:
             return {}
 
     # 发送群消息
-    def send_qun_msg(self, guin, reply_content, msg_id, fail_times=0):
+    def send_qun_msg(self, guin, reply_content, fail_times=0):
+        self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
             "utf-8")
         rsp = ""
@@ -406,7 +410,7 @@ class QQ:
             data = (
                 ('r',
                  '{{"group_uin":{0}, "face":564,"content":"[\\"{4}\\",[\\"font\\",{{\\"name\\":\\"Arial\\",\\"size\\":\\"10\\",\\"style\\":[0,0,0],\\"color\\":\\"000000\\"}}]]","clientid":"{1}","msg_id":{2},"psessionid":"{3}"}}'.format(
-                     guin, self.client_id, msg_id, self.psessionid, fix_content)),
+                     guin, self.client_id, self.msg_id, self.psessionid, fix_content)),
                 ('clientid', self.client_id),
                 ('psessionid', self.psessionid)
             )
@@ -422,13 +426,14 @@ class QQ:
                 logging.warning("send_qun_msg: Response Error.Wait for 2s and Retrying." + str(fail_times))
                 logging.debug(rsp)
                 time.sleep(2)
-                self.send_qun_msg(guin, reply_content, msg_id, fail_times + 1)
+                self.send_qun_msg(guin, reply_content, fail_times + 1)
             else:
                 logging.warning("send_qun_msg: Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
 
     # 发送私密消息
-    def send_buddy_msg(self, tuin, reply_content, msg_id, fail_times=0):
+    def send_buddy_msg(self, tuin, reply_content, fail_times=0):
+        self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
             "utf-8")
         rsp = ""
@@ -437,7 +442,7 @@ class QQ:
             data = (
                 ('r',
                  '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}"}}'.format(
-                     tuin, self.client_id, msg_id, self.psessionid, fix_content)),
+                     tuin, self.client_id, self.msg_id, self.psessionid, fix_content)),
                 ('clientid', self.client_id),
                 ('psessionid', self.psessionid)
             )
@@ -453,13 +458,14 @@ class QQ:
                 logging.warning("Response Error.Wait for 2s and Retrying." + str(fail_times))
                 logging.debug(rsp)
                 time.sleep(2)
-                self.send_buddy_msg(tuin, reply_content, msg_id, fail_times + 1)
+                self.send_buddy_msg(tuin, reply_content, fail_times + 1)
             else:
                 logging.warning("Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
 
     # 发送临时消息
-    def send_sess_msg2(self, tuin, reply_content, msg_id, group_sig, service_type=0, fail_times=0):
+    def send_sess_msg2(self, tuin, reply_content, group_sig, service_type=0, fail_times=0):
+        self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
             "utf-8")
         rsp = ""
@@ -470,7 +476,7 @@ class QQ:
                  '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
                      tuin,
                      self.client_id,
-                     msg_id,
+                     self.msg_id,
                      self.psessionid,
                      fix_content,
                      group_sig,
@@ -493,16 +499,16 @@ class QQ:
                 logging.warning("Response Error.Wait for 2s and Retrying." + str(fail_times))
                 logging.debug(rsp)
                 time.sleep(2)
-                self.send_sess_msg2(tuin, reply_content, msg_id, group_sig, service_type, fail_times + 1)
+                self.send_sess_msg2(tuin, reply_content, group_sig, service_type, fail_times + 1)
             else:
                 logging.warning("Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
 
     # 主动发送临时消息
-    def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, msg_id, service_type=0, fail_times=0):
+    def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, service_type=0, fail_times=0):
+        self.msg_id += 1
         group_sig = self.__getGroupSig(guin, tuin, service_type)
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
-            "utf-8")
+        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
         rsp = ""
         try:
             req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
@@ -511,7 +517,7 @@ class QQ:
                  '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
                      tuin,
                      self.client_id,
-                     msg_id,
+                     self.msg_id,
                      self.psessionid,
                      fix_content,
                      group_sig,
@@ -534,7 +540,30 @@ class QQ:
                 logging.warning("send_sess_msg2_fromGroup: Response Error.Wait for 2s and Retrying." + str(fail_times))
                 logging.debug(rsp)
                 time.sleep(2)
-                self.send_sess_msg2_fromGroup(guin, tuin, reply_content, msg_id, service_type, fail_times + 1)
+                self.send_sess_msg2_fromGroup(guin, tuin, reply_content, service_type, fail_times + 1)
             else:
-                logging.warning("send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
+                logging.warning(
+                    "send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
+
+    def op_group_join_req(self, group_uin, req_uin, optype, msg=''):
+        """
+        处理入群请求 （貌似接口已经不能用了）
+        :param group_uin:
+        :param req_uin:
+        :param optype: 2:通过  3:拒绝
+        :param msg: 拒绝理由
+        :return:
+        """
+        self.msg_id += 1
+
+        req_url = "http://d.web2.qq.com/channel/op_group_join_req"
+        data = (('group_uin', group_uin),
+                ('req_uin', req_uin),
+                ('msg', msg),
+                ('op_type', optype),
+                ('clientid', self.client_id),
+                ('psessionid', self.psessionid),
+                ('t', time.time()))
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        pass

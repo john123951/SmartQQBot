@@ -34,7 +34,7 @@ class MsgHandler:
 
             if not isinstance(msg, (Msg, Notify)):
                 logging.error("Handler received a not a Msg or Notify instance.")
-                raise TypeError("Handler received a not a Msg or Notify instance.")
+                return
 
             elif isinstance(msg, MsgWithContent):
                 logging.info(str(self.__get_account(msg)) + ":" + msg.content)
@@ -108,7 +108,7 @@ class MsgHandler:
 
             else:
                 logging.warning("Unsolved Msg type :" + str(msg.poll_type))
-                raise TypeError("Unsolved Msg type :" + str(msg.poll_type))
+            return
 
     def __get_account(self, msg):
         assert isinstance(msg, (Msg, Notify)), "function get_account received a not Msg or Notify parameter."
@@ -122,18 +122,21 @@ class MsgHandler:
         elif isinstance(msg, GroupMsg):
             return str(msg.info_seq).join("[]") + str(self.__operator.uin_to_account(msg.send_uin))
 
-    def __input_notify_handler(self, msg):
-        logging.info(str(self.__get_account(msg)) + " is typing...")
+    def __input_notify_handler(self, inputNotify):
+        logging.info(str(self.__get_account(inputNotify)) + " is typing...")
+        if isinstance(inputNotify, GroupAddMessage):
+            pass
+        return
 
-    def __buddies_status_change_handler(self, msg):
+    def __buddies_status_change_handler(self, buddiesStatusChange):
         pass
 
-    def __kick_message(self, msg):
-        logging.warning(str(msg.to_uin) + " is kicked. Reason: " + str(msg.reason))
+    def __kick_message(self, kickMessage):
+        logging.warning(str(kickMessage.to_uin) + " is kicked. Reason: " + str(kickMessage.reason))
         logging.warning("[{0}]{1} is kicked. Reason:  {2}".format(
-            str(msg.to_uin),
+            str(kickMessage.to_uin),
             self.__operator.username,
-            str(msg.reason),
+            str(kickMessage.reason),
         ))
         raise KeyboardInterrupt("Kicked")
 

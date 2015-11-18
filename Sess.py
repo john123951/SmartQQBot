@@ -22,7 +22,6 @@ class Sess:
         self.tid = self.__operator.uin_to_account(self.tuin)
         self.id = sess_msg.id
         self.service_type = sess_msg.service_type
-        self.msg_id = int(random.uniform(20000, 50000))
         self.group_sig = self.get_group_sig()
         self.msg_list = []
         self.global_config = DefaultConfigs()
@@ -88,8 +87,7 @@ class Sess:
             return self.get_group_sig(fail_time + 1)
 
     def reply(self, reply_content):
-        self.msg_id += 1
-        return self.__operator.send_sess_msg2(self.tuin, reply_content, self.msg_id, self.group_sig, self.service_type)
+        return self.__operator.send_sess_msg2(self.tuin, reply_content, self.group_sig, self.service_type)
 
     def callout(self, msg):
         if "智障机器人" in msg.content:

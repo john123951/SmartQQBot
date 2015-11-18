@@ -11,6 +11,7 @@ from Msg import *
 from plugin import shuishiwodi, shuishiwodiStartStatus
 from plugin.weather import Weather
 from plugin.Turing import Turing
+from plugin.yiyan import yiyan
 
 logging.basicConfig(
     filename='smartqq.log',
@@ -34,7 +35,6 @@ class Group:
         elif isinstance(ip, GroupMsg):
             self.guin = ip.from_uin
             self.gid = ip.info_seq
-        self.msg_id = int(random.uniform(20000, 50000))
         self.group_code = 0
         self.member_list = []
         self.msg_list = []
@@ -53,6 +53,7 @@ class Group:
             "command_0arg",
             "command_1arg",
             "tucao",
+            "yiyan"
         ]
         self.__game_handler = None
         logging.info(str(self.gid) + "群已激活, 当前执行顺序： " + str(self.process_order))
@@ -106,13 +107,11 @@ class Group:
 
     # 发送群消息
     def reply(self, reply_content):
-        self.msg_id += 1
-        return self.__operator.send_qun_msg(self.guin, reply_content, self.msg_id)
+        return self.__operator.send_qun_msg(self.guin, reply_content)
 
     # 发送临时消息给群成员
     def reply_sess(self, tuin, reply_content, service_type=0):
-        self.msg_id += 1
-        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content, self.msg_id, service_type)
+        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content, service_type)
 
     def command_0arg(self, msg):
         # webqq接受的消息会以空格结尾
@@ -308,4 +307,14 @@ class Group:
             if self.__game_handler.status not in ['StartStatus', 'EndStatus']:
                 self.__game_handler.run(msg)
                 return True  # 游戏期间屏蔽其他处理过程
+        return False
+
+    def yiyan(self, msg):
+        match = re.match(ur'^(?:!|！)(yiyan|一言)', msg.content)
+        if match:
+            yiyanClient = yiyan()
+            info = yiyanClient.get_rand()
+            if 'hitokoto' in info:
+                self.reply(info['hitokoto'])
+                return True
         return False
