@@ -124,6 +124,9 @@ class MsgHandler:
 
     def __input_notify_handler(self, inputNotify):
         logging.info(str(self.__get_account(inputNotify)) + " is typing...")
+        if isinstance(inputNotify, GroupAddMessage):
+            pass
+        return
 
     def __buddies_status_change_handler(self, buddiesStatusChange):
         pass

@@ -11,6 +11,7 @@ from Msg import *
 from plugin import shuishiwodi, shuishiwodiStartStatus
 from plugin.weather import Weather
 from plugin.Turing import Turing
+from plugin.yiyan import yiyan
 
 logging.basicConfig(
     filename='smartqq.log',
@@ -52,6 +53,7 @@ class Group:
             "command_0arg",
             "command_1arg",
             "tucao",
+            "yiyan"
         ]
         self.__game_handler = None
         logging.info(str(self.gid) + "群已激活, 当前执行顺序： " + str(self.process_order))
@@ -305,4 +307,14 @@ class Group:
             if self.__game_handler.status not in ['StartStatus', 'EndStatus']:
                 self.__game_handler.run(msg)
                 return True  # 游戏期间屏蔽其他处理过程
+        return False
+
+    def yiyan(self, msg):
+        match = re.match(ur'^(?:!|！)(yiyan|一言)', msg.content)
+        if match:
+            yiyanClient = yiyan()
+            info = yiyanClient.get_rand()
+            if 'hitokoto' in info:
+                self.reply(info['hitokoto'])
+                return True
         return False

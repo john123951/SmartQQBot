@@ -220,8 +220,7 @@ class QQ:
 
         # 调用后进入单次轮询，等待服务器发回状态。
         html = self.req.Post('http://d.web2.qq.com/channel/poll2', {
-            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq,
-                                                                                         self.client_id)
+            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq,self.client_id)
         }, self.default_config.conf.get("global", "connect_referer"))
         logging.debug("check_msg html:  " + str(html))
         try:
@@ -355,7 +354,7 @@ class QQ:
         :return:dict
         """
         url = "http://s.web2.qq.com/api/get_friend_info2?tuin=%s&vfwebqq=%s&clientid=%s&psessionid=%s&t=%s" % (
-        tuin, self.vfwebqq, self.client_id, self.psessionid, int(time.time() * 100))
+            tuin, self.vfwebqq, self.client_id, self.psessionid, int(time.time() * 100))
         response = self.req.Get(url)
         rsp_json = json.loads(response)
         if rsp_json["retcode"] != 0:
@@ -547,7 +546,15 @@ class QQ:
                     "send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
 
-    def op_group_join_req(self, group_uin, req_uin, msg, optype):
+    def op_group_join_req(self, group_uin, req_uin, optype, msg=''):
+        """
+        处理入群请求 （貌似接口已经不能用了）
+        :param group_uin:
+        :param req_uin:
+        :param optype: 2:通过  3:拒绝
+        :param msg: 拒绝理由
+        :return:
+        """
         self.msg_id += 1
 
         req_url = "http://d.web2.qq.com/channel/op_group_join_req"
@@ -559,5 +566,4 @@ class QQ:
                 ('psessionid', self.psessionid),
                 ('t', time.time()))
         rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-        rsp_json = json.loads(rsp)
         pass
