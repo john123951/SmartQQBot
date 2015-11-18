@@ -34,7 +34,6 @@ class Group:
         elif isinstance(ip, GroupMsg):
             self.guin = ip.from_uin
             self.gid = ip.info_seq
-        self.msg_id = int(random.uniform(20000, 50000))
         self.group_code = 0
         self.member_list = []
         self.msg_list = []
@@ -106,13 +105,11 @@ class Group:
 
     # 发送群消息
     def reply(self, reply_content):
-        self.msg_id += 1
-        return self.__operator.send_qun_msg(self.guin, reply_content, self.msg_id)
+        return self.__operator.send_qun_msg(self.guin, reply_content)
 
     # 发送临时消息给群成员
     def reply_sess(self, tuin, reply_content, service_type=0):
-        self.msg_id += 1
-        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content, self.msg_id, service_type)
+        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content, service_type)
 
     def command_0arg(self, msg):
         # webqq接受的消息会以空格结尾

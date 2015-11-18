@@ -21,7 +21,6 @@ class Pm:
         elif isinstance(ip, PmMsg):
             self.tuin = ip.from_uin
         self.tid = self.__operator.uin_to_account(self.tuin)
-        self.msg_id = int(random.uniform(20000, 50000))
         self.msg_list = []
         self.global_config = DefaultConfigs()
         self.private_config = PmConfig(self)
@@ -59,8 +58,7 @@ class Pm:
         self.msg_list.append(msg)
 
     def reply(self, reply_content):
-        self.msg_id += 1
-        return self.__operator.send_buddy_msg(self.tuin, reply_content, self.msg_id)
+        return self.__operator.send_buddy_msg(self.tuin, reply_content)
 
     def callout(self, msg):
         if "智障机器人" in msg.content:

@@ -34,7 +34,7 @@ class MsgHandler:
 
             if not isinstance(msg, (Msg, Notify)):
                 logging.error("Handler received a not a Msg or Notify instance.")
-                raise TypeError("Handler received a not a Msg or Notify instance.")
+                return
 
             elif isinstance(msg, MsgWithContent):
                 logging.info(str(self.__get_account(msg)) + ":" + msg.content)
