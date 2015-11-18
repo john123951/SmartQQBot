@@ -355,7 +355,7 @@ class QQ:
         :return:dict
         """
         url = "http://s.web2.qq.com/api/get_friend_info2?tuin=%s&vfwebqq=%s&clientid=%s&psessionid=%s&t=%s" % (
-            tuin, self.vfwebqq, self.client_id, self.psessionid, int(time.time() * 100))
+        tuin, self.vfwebqq, self.client_id, self.psessionid, int(time.time() * 100))
         response = self.req.Get(url)
         rsp_json = json.loads(response)
         if rsp_json["retcode"] != 0:
@@ -509,8 +509,7 @@ class QQ:
     def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, service_type=0, fail_times=0):
         self.msg_id += 1
         group_sig = self.__getGroupSig(guin, tuin, service_type)
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
-            "utf-8")
+        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
         rsp = ""
         try:
             req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
@@ -547,3 +546,18 @@ class QQ:
                 logging.warning(
                     "send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
+
+    def op_group_join_req(self, group_uin, req_uin, msg, optype):
+        self.msg_id += 1
+
+        req_url = "http://d.web2.qq.com/channel/op_group_join_req"
+        data = (('group_uin', group_uin),
+                ('req_uin', req_uin),
+                ('msg', msg),
+                ('op_type', optype),
+                ('clientid', self.client_id),
+                ('psessionid', self.psessionid),
+                ('t', time.time()))
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(rsp)
+        pass

@@ -40,20 +40,19 @@ class KickMessage(Notify):
         self.to_uin = json_input['value']['to_uin']
 
 
-class GroupAddMessage(Notify):
+class GroupAddMessage(InputNotify):
     """
     加群请求
     """
 
     def __init__(self, json_input):
-        Notify.__init__(self, json_input)
-        self.from_uin = json_input['value']['from_uin']
-        self.msg_id = json_input['value']['msg_id']
-        self.msg_id2 = json_input['value']['msg_id2']
-        self.msg_type = json_input['value']['msg_type']
-        self.reply_ip = json_input['value']['reply_ip']
-        self.to_uin = json_input['value']['to_uin']
-
+        InputNotify.__init__(self, json_input)
+        # self.from_uin = json_input['value']['from_uin']
+        # self.msg_id = json_input['value']['msg_id']
+        # self.msg_id2 = json_input['value']['msg_id2']
+        # self.msg_type = json_input['value']['msg_type']
+        # self.reply_ip = json_input['value']['reply_ip']
+        # self.to_uin = json_input['value']['to_uin']
         self.type = json_input['value']['type']
         self.gcode = json_input['value']['gcode']
         self.t_gcode = json_input['value']['t_gcode']
