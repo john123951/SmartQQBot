@@ -47,13 +47,13 @@ class Group:
             "game",
             "weather",
             'ask',
+            "yiyan",
             "follow",
+            "tucao",
             "repeat",
             "callout",
             "command_0arg",
             "command_1arg",
-            "tucao",
-            "yiyan"
         ]
         self.__game_handler = None
         logging.info(str(self.gid) + "群已激活, 当前执行顺序： " + str(self.process_order))
@@ -148,7 +148,7 @@ class Group:
         self.reply(result)
 
     def callout(self, msg):
-        if "智障机器人" in msg.content:
+        if "机器人" in msg.content:
             logging.info(str(self.gid) + " calling me out, trying to reply....")
             self.reply("干嘛（‘·д·）")
             return True
