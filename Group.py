@@ -110,8 +110,8 @@ class Group:
         return self.__operator.send_qun_msg(self.guin, reply_content)
 
     # 发送临时消息给群成员
-    def reply_sess(self, tuin, reply_content, service_type=0):
-        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content, service_type)
+    def reply_sess(self, tuin, reply_content):
+        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content)
 
     def command_0arg(self, msg):
         # webqq接受的消息会以空格结尾
@@ -150,8 +150,6 @@ class Group:
     def callout(self, msg):
         if "机器人" in msg.content:
             logging.info(str(self.gid) + " calling me out, trying to reply....")
-            info = self.get_member_list()
-            print(info)
             self.reply("干嘛（‘·д·）")
             return True
         return False

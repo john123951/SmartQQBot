@@ -17,13 +17,20 @@ from HttpClient import *
 
 logging.basicConfig(
     filename='smartqq.log',
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s  %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
     datefmt='%a, %d %b %Y %H:%M:%S',
 )
 
 
+# 过滤器
 def catch(func):
+    """
+    容错过滤器
+    :param func:
+    :return:
+    """
+
     def wrapper(*args, **kw):
         try:
             return func(*args, **kw)
@@ -34,23 +41,28 @@ def catch(func):
     return wrapper
 
 
-def get_revalue(html, rex, er, ex):
-    v = re.search(rex, html)
+def retry(times=5, sleep=2):
+    """
+    重试过滤器
+    :param times:
+    :param sleep:
+    :return:
+    """
 
-    if v is None:
+    def decorator(func):
+        def wrapper(*args, **kw):
+            count = max(1, times)
+            for x in range(0, count):
+                try:
+                    return func(*args, **kw)
+                except Exception as ex:
+                    logging.warning("%s: Response Error.Wait for %ss and Retrying." % (func.__name__, sleep))
+                    time.sleep(sleep)
+            return {}
 
-        if ex:
-            logging.error(er)
-            raise TypeError(er)
-        else:
-            logging.warning(er)
-        return ''
+        return wrapper
 
-    return v.group(1)
-
-
-def date_to_millis(d):
-    return int(time.mktime(d.timetuple())) * 1000
+    return decorator
 
 
 class QQ:
@@ -105,6 +117,7 @@ class QQ:
             V += N[U[T] & 15]
         return V
 
+    @catch
     def __getGroupSig(self, guin, tuin, service_type=0):
         key = '%s --> %s' % (guin, tuin)
         if key not in self.__groupSig_list:
@@ -121,6 +134,23 @@ class QQ:
         return ""
 
     def login_by_qrcode(self):
+        def get_revalue(html, rex, er, ex):
+            v = re.search(rex, html)
+
+            if v is None:
+
+                if ex:
+                    logging.error(er)
+                    raise TypeError(er)
+                else:
+                    logging.warning(er)
+                return ''
+
+            return v.group(1)
+
+        def date_to_millis(d):
+            return int(time.mktime(d.timetuple())) * 1000
+
         logging.info("Requesting the login pages...")
         initurl_html = self.req.Get(self.default_config.conf.get("global", "smartqq_url"))
         logging.debug("login page html: " + str(initurl_html))
@@ -206,110 +236,88 @@ class QQ:
 
         logging.info("QQ：{0} login successfully, Username：{1}".format(self.account, self.username))
 
-    def relogin(self, error_times=0):
-        if error_times >= 10:
-            return False
-        try:
-            html = self.req.Post('http://d.web2.qq.com/channel/login2', {
-                'r': '{{"ptwebqq":"{0}","clientid":{1},"psessionid":"{2}","key":"","status":"online"}}'.format(
-                    self.ptwebqq,
-                    self.client_id,
-                    self.psessionid)
-            }, self.default_config.conf.get("global", "connect_referer"))
-            logging.debug("relogin html:  " + str(html))
-            ret = json.loads(html)
-            self.vfwebqq = ret['result']['vfwebqq']
-            self.psessionid = ret['result']['psessionid']
-            return True
-        except:
-            logging.info("login fail, retryng..." + str(error_times))
-            return self.relogin(error_times + 1)
+    @retry(10)
+    def relogin(self):
+        html = self.req.Post('http://d.web2.qq.com/channel/login2', {
+            'r': '{{"ptwebqq":"{0}","clientid":{1},"psessionid":"{2}","key":"","status":"online"}}'.format(
+                self.ptwebqq,
+                self.client_id,
+                self.psessionid)
+        }, self.default_config.conf.get("global", "connect_referer"))
+        logging.debug("relogin html:  " + str(html))
+        ret = json.loads(html)
+        self.vfwebqq = ret['result']['vfwebqq']
+        self.psessionid = ret['result']['psessionid']
+        return True
 
-    def check_msg(self, error_times=0):
-        if error_times >= 5:
-            if not self.relogin():
-                raise IOError("Account offline.")
-            else:
-                error_times = 0
+    @retry(5)
+    def check_msg(self):
 
         # 调用后进入单次轮询，等待服务器发回状态。
         html = self.req.Post('http://d.web2.qq.com/channel/poll2', {
             'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq, self.client_id)
         }, self.default_config.conf.get("global", "connect_referer"))
         logging.debug("check_msg html:  " + str(html))
-        try:
-            if html == "":
-                return self.check_msg()
-            ret = json.loads(html)
 
-            ret_code = ret['retcode']
+        if html == "":
+            return self.check_msg()
 
-            if ret_code in (102,):
-                logging.info("received retcode: " + str(ret_code) + ": No message.")
-                time.sleep(1)
-                return
+        ret = json.loads(html)
+        ret_code = ret['retcode']
 
-            if ret_code in (103,):
-                logging.warning("received retcode: " + str(ret_code) + ": Check error.retrying.." + str(error_times))
-                time.sleep(1)
-                return self.check_msg(error_times + 1)
+        if ret_code in (102,):
+            logging.info("received retcode: " + str(ret_code) + ": No message.")
+            time.sleep(1.5)
+            return None
 
-            if ret_code in (121,):
-                logging.warning("received retcode: " + str(ret_code))
-                return self.check_msg(5)
-
-            elif ret_code == 0:
-                msg_list = []
-                pm_list = []
-                sess_list = []
-                group_list = []
-                notify_list = []
-                for msg in ret['result']:
-                    ret_type = msg['poll_type']
-                    if ret_type == 'message':
-                        pm_list.append(PmMsg(msg))
-                    elif ret_type == 'group_message':
-                        group_list.append(GroupMsg(msg))
-                    elif ret_type == 'sess_message':
-                        sess_list.append(SessMsg(msg))
-                    elif ret_type == 'input_notify':
-                        notify_list.append(InputNotify(msg))
-                    elif ret_type == 'sys_g_msg':
-                        if msg['value'] and msg['value']['type'] == 'group_request_join':
-                            notify_list.append(GroupAddMessage(msg))
-                    elif ret_code == 'kick_message':
-                        notify_list.append(KickMessage(msg))
-                    else:
-                        logging.warning("unknown message type: " + str(ret_type) + "details:    " + str(msg))
-
-                group_list.sort(key=lambda x: x.seq)
-                msg_list += pm_list + sess_list + group_list + notify_list
-                if not msg_list:
-                    return
-                return msg_list
-
-            elif ret_code == 100006:
-                logging.warning("POST data error")
-                return
-
-            elif ret_code == 116:
-                self.ptwebqq = ret['p']
-                logging.info("ptwebqq updated.")
-                return
-
-            else:
-                logging.warning("unknown retcode " + str(ret_code))
-                return
-
-        except ValueError, e:
-            logging.warning("Check error occured: " + str(e))
+        if ret_code in (103, 121):
+            logging.warning("received retcode: " + str(ret_code))
             time.sleep(1)
-            return self.check_msg(error_times + 1)
+            raise Exception(str(ret_code))
 
-        except BaseException, e:
-            logging.warning("Unknown check error occured, retrying. Error: " + str(e))
-            time.sleep(1)
-            return self.check_msg(error_times + 1)
+        elif ret_code == 0:
+            msg_list = []
+            pm_list = []
+            sess_list = []
+            group_list = []
+            notify_list = []
+            for msg in ret['result']:
+                ret_type = msg['poll_type']
+
+                if ret_type == 'message':
+                    pm_list.append(PmMsg(msg))
+                elif ret_type == 'group_message':
+                    group_list.append(GroupMsg(msg))
+                elif ret_type == 'sess_message':
+                    sess_list.append(SessMsg(msg))
+                elif ret_type == 'input_notify':
+                    notify_list.append(InputNotify(msg))
+                elif ret_type == 'sys_g_msg':
+                    if msg['value'] and msg['value']['type'] == 'group_request_join':
+                        notify_list.append(GroupAddMessage(msg))
+                elif ret_type == 'kick_message':
+                    notify_list.append(KickMessage(msg))
+                else:
+                    logging.warning("unknown message type: " + str(ret_type) + "details:    " + str(msg))
+
+            group_list.sort(key=lambda x: x.seq)
+            msg_list += pm_list + sess_list + group_list + notify_list
+            if not msg_list:
+                return None
+            return msg_list
+
+        elif ret_code == 100006:
+            logging.warning("POST data error")
+            return
+
+        elif ret_code == 116:
+            self.ptwebqq = ret['p']
+            logging.info("ptwebqq updated.")
+            return
+
+        else:
+            logging.warning("unknown retcode " + str(ret_code))
+            return
 
     # 查询QQ号，通常首次用时0.2s，以后基本不耗时
     def uin_to_account(self, tuin):
@@ -343,6 +351,7 @@ class QQ:
             logging.debug("now uin list:    " + str(self.friend_list))
 
     # 获取自己的信息
+    @catch
     def get_self_info2(self):
         """
         获取自己的信息
@@ -360,6 +369,7 @@ class QQ:
         return self.__self_info
 
     # 获取好友详情信息
+    @catch
     def get_friend_info2(self, tuin):
         """
         获取好友详情信息
@@ -376,6 +386,7 @@ class QQ:
         return rsp_json["result"]
 
     # 获取好友的签名信息
+    @catch
     def get_single_long_nick2(self, tuin):
         """
         获取好友的签名信息
@@ -383,8 +394,7 @@ class QQ:
         {"retcode":0,"result":[{"uin":3964575484,"lnick":"幸福，知道自己在哪里，知道下一个目标在哪里，心不累~"}]}
         :return:dict
         """
-        url = "http://s.web2.qq.com/api/get_single_long_nick2?tuin=%s&vfwebqq=%s&t=%s" % (
-            tuin, self.vfwebqq, int(time.time() * 100))
+        url = "http://s.web2.qq.com/api/get_single_long_nick2?tuin=%s&vfwebqq=%s&t=%s" % (tuin, self.vfwebqq, int(time.time() * 100))
         response = self.req.Get(url)
         rsp_json = json.loads(response)
         if rsp_json["retcode"] != 0:
@@ -392,6 +402,7 @@ class QQ:
         return rsp_json["result"]
 
     # 获取群信息（对于易变的信息，请在外层做缓存处理）
+    @catch
     def get_group_info_ext2(self, gcode):
         """
         获取群信息
@@ -401,164 +412,115 @@ class QQ:
         """
         if gcode == 0:
             return {}
-        try:
-            url = "http://s.web2.qq.com/api/get_group_info_ext2?gcode=%s&vfwebqq=%s&t=%s" % (
-                gcode, self.vfwebqq, int(time.time() * 100))
-            response = self.req.Get(url)
-            rsp_json = json.loads(response)
-            if rsp_json["retcode"] != 0:
-                return {}
-            return rsp_json["result"]
-        except Exception as ex:
-            logging.warning("get_group_info_ext2. Error: " + str(ex))
+        url = "http://s.web2.qq.com/api/get_group_info_ext2?gcode=%s&vfwebqq=%s&t=%s" % (gcode, self.vfwebqq, int(time.time() * 100))
+        response = self.req.Get(url)
+        rsp_json = json.loads(response)
+        if rsp_json["retcode"] != 0:
             return {}
+        return rsp_json["result"]
 
     # 发送群消息
-    def send_qun_msg(self, guin, reply_content, fail_times=0):
+    @retry(5)
+    def send_qun_msg(self, guin, reply_content):
         self.msg_id += 1
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
-            "utf-8")
-        rsp = ""
-        try:
-            req_url = "http://d.web2.qq.com/channel/send_qun_msg2"
-            data = (
-                ('r',
-                 '{{"group_uin":{0}, "face":564,"content":"[\\"{4}\\",[\\"font\\",{{\\"name\\":\\"Arial\\",\\"size\\":\\"10\\",\\"style\\":[0,0,0],\\"color\\":\\"000000\\"}}]]","clientid":"{1}","msg_id":{2},"psessionid":"{3}"}}'.format(
-                     guin, self.client_id, self.msg_id, self.psessionid, fix_content)),
-                ('clientid', self.client_id),
-                ('psessionid', self.psessionid)
-            )
-            rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-            rsp_json = json.loads(rsp)
-            if rsp_json['retcode'] != 0:
-                raise ValueError("reply group chat error" + str(rsp_json['retcode']))
-            logging.info("send_qun_msg: Reply successfully.")
-            logging.debug("send_qun_msg: Reply response: " + str(rsp))
-            return rsp_json
-        except:
-            if fail_times < 5:
-                logging.warning("send_qun_msg: Response Error.Wait for 2s and Retrying." + str(fail_times))
-                logging.debug(rsp)
-                time.sleep(2)
-                self.send_qun_msg(guin, reply_content, fail_times + 1)
-            else:
-                logging.warning("send_qun_msg: Response Error over 5 times.Exit.reply content:" + str(reply_content))
-                return False
+        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
+        req_url = "http://d.web2.qq.com/channel/send_qun_msg2"
+        data = (
+            ('r',
+             '{{"group_uin":{0}, "face":564,"content":"[\\"{4}\\",[\\"font\\",{{\\"name\\":\\"Arial\\",\\"size\\":\\"10\\",\\"style\\":[0,0,0],\\"color\\":\\"000000\\"}}]]","clientid":"{1}","msg_id":{2},"psessionid":"{3}"}}'.format(
+                 guin, self.client_id, self.msg_id, self.psessionid, fix_content)),
+            ('clientid', self.client_id),
+            ('psessionid', self.psessionid)
+        )
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(rsp)
+        if rsp_json['retcode'] != 0:
+            raise ValueError("reply group chat error" + str(rsp_json['retcode']))
+        logging.info("send_qun_msg: Reply successfully.")
+        logging.debug("send_qun_msg: Reply response: " + str(rsp))
+        return rsp_json
 
     # 发送私密消息
-    def send_buddy_msg(self, tuin, reply_content, fail_times=0):
+    @retry(5)
+    def send_buddy_msg(self, tuin, reply_content):
         self.msg_id += 1
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
-            "utf-8")
-        rsp = ""
-        try:
-            req_url = "http://d.web2.qq.com/channel/send_buddy_msg2"
-            data = (
-                ('r',
-                 '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}"}}'.format(
-                     tuin, self.client_id, self.msg_id, self.psessionid, fix_content)),
-                ('clientid', self.client_id),
-                ('psessionid', self.psessionid)
-            )
-            rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-            rsp_json = json.loads(rsp)
-            if rsp_json['retcode'] != 0:
-                raise ValueError("reply pmchat error" + str(rsp_json['retcode']))
-            logging.info("Reply successfully.")
-            logging.debug("Reply response: " + str(rsp))
-            return rsp_json
-        except:
-            if fail_times < 5:
-                logging.warning("Response Error.Wait for 2s and Retrying." + str(fail_times))
-                logging.debug(rsp)
-                time.sleep(2)
-                self.send_buddy_msg(tuin, reply_content, fail_times + 1)
-            else:
-                logging.warning("Response Error over 5 times.Exit.reply content:" + str(reply_content))
-                return False
+        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
+        req_url = "http://d.web2.qq.com/channel/send_buddy_msg2"
+        data = (
+            ('r',
+             '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}"}}'.format(
+                 tuin, self.client_id, self.msg_id, self.psessionid, fix_content)),
+            ('clientid', self.client_id),
+            ('psessionid', self.psessionid)
+        )
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(rsp)
+        if rsp_json['retcode'] != 0:
+            raise ValueError("reply pmchat error" + str(rsp_json['retcode']))
+        logging.info("Reply successfully.")
+        logging.debug("Reply response: " + str(rsp))
+        return rsp_json
 
     # 发送临时消息
-    def send_sess_msg2(self, tuin, reply_content, group_sig, service_type=0, fail_times=0):
+    @retry(5)
+    def send_sess_msg2(self, tuin, reply_content, group_sig, service_type=0):
         self.msg_id += 1
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode(
-            "utf-8")
-        rsp = ""
-        try:
-            req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
-            data = (
-                ('r',
-                 '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
-                     tuin,
-                     self.client_id,
-                     self.msg_id,
-                     self.psessionid,
-                     fix_content,
-                     group_sig,
-                     service_type)
-                 ),
-                ('clientid', self.client_id),
-                ('psessionid', self.psessionid),
-                ('group_sig', group_sig),
-                ('service_type', service_type)
-            )
-            rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-            rsp_json = json.loads(rsp)
-            if rsp_json['retcode'] != 0:
-                raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
-            logging.info("Reply successfully.")
-            logging.debug("Reply response: " + str(rsp))
-            return rsp_json
-        except:
-            if fail_times < 5:
-                logging.warning("Response Error.Wait for 2s and Retrying." + str(fail_times))
-                logging.debug(rsp)
-                time.sleep(2)
-                self.send_sess_msg2(tuin, reply_content, group_sig, service_type, fail_times + 1)
-            else:
-                logging.warning("Response Error over 5 times.Exit.reply content:" + str(reply_content))
-                return False
+        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
+        req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
+        data = (
+            ('r',
+             '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
+                 tuin,
+                 self.client_id,
+                 self.msg_id,
+                 self.psessionid,
+                 fix_content,
+                 group_sig,
+                 service_type)
+             ),
+            ('clientid', self.client_id),
+            ('psessionid', self.psessionid),
+            ('group_sig', group_sig),
+            ('service_type', service_type)
+        )
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(rsp)
+        if rsp_json['retcode'] != 0:
+            raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
+        logging.info("Reply successfully.")
+        logging.debug("Reply response: " + str(rsp))
+        return rsp_json
 
     # 主动发送临时消息
-    def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, service_type=0, fail_times=0):
+    @retry(5)
+    def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, service_type=0):
         self.msg_id += 1
         group_sig = self.__getGroupSig(guin, tuin, service_type)
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
-        rsp = ""
-        try:
-            req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
-            data = (
-                ('r',
-                 '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
-                     tuin,
-                     self.client_id,
-                     self.msg_id,
-                     self.psessionid,
-                     fix_content,
-                     group_sig,
-                     service_type)
-                 ),
-                ('clientid', self.client_id),
-                ('psessionid', self.psessionid),
-                ('group_sig', group_sig),
-                ('service_type', service_type)
-            )
-            rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-            rsp_json = json.loads(rsp)
-            if rsp_json['retcode'] != 0:
-                raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
-            logging.info("send_sess_msg2_fromGroup: Reply successfully.")
-            logging.debug("send_sess_msg2_fromGroup: Reply response: " + str(rsp))
-            return rsp_json
-        except:
-            if fail_times < 5:
-                logging.warning("send_sess_msg2_fromGroup: Response Error.Wait for 2s and Retrying." + str(fail_times))
-                logging.debug(rsp)
-                time.sleep(2)
-                self.send_sess_msg2_fromGroup(guin, tuin, reply_content, service_type, fail_times + 1)
-            else:
-                logging.warning(
-                    "send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
-                return False
+        req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
+        data = (
+            ('r',
+             '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
+                 tuin,
+                 self.client_id,
+                 self.msg_id,
+                 self.psessionid,
+                 fix_content,
+                 group_sig,
+                 service_type)
+             ),
+            ('clientid', self.client_id),
+            ('psessionid', self.psessionid),
+            ('group_sig', group_sig),
+            ('service_type', service_type)
+        )
+        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(rsp)
+        if rsp_json['retcode'] != 0:
+            raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
+        logging.info("send_sess_msg2_fromGroup: Reply successfully.")
+        logging.debug("send_sess_msg2_fromGroup: Reply response: " + str(rsp))
+        return rsp_json
 
     # 修改在线状态
     @catch

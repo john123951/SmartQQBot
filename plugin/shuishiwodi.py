@@ -175,7 +175,7 @@ class AssignRolesStatus(StatusHandler):
             game.gameId, len(game.playerList), self.__undercoverCount, playerNames))
         # 私聊玩家，通知词语
         for x in game.playerList:
-            game.writePrivate(x.uin, u'[%s]谁是卧底，您本局[%s]的词语是：%s' % (x.name,game.gameId, x.word))
+            game.writePrivate(x.uin, u'[%s]谁是卧底，您本局[%s]的词语是：%s' % (x.name, game.gameId, x.word))
         # 进入发言阶段
         self.__nextStatusHandle = SpeechStatus(self.__game)
         return True
@@ -240,8 +240,8 @@ class SpeechStatus(StatusHandler):
     def __startNotifyThread(self, timeout=80):
         def process(statusHandle, game, timeout):
             while statusHandle == game.statusHandle and timeout > 0:
-                time.sleep(10)
-                timeout -= 10
+                time.sleep(1)
+                timeout -= 1
                 if timeout <= 0:
                     statusHandle.next()  # 进行下一阶段
                     return
@@ -310,8 +310,8 @@ class VoteStatus(StatusHandler):
     def __startNotifyThread(self, timeout=80):
         def process(statusHandle, game, timeout):
             while statusHandle == game.statusHandle and timeout > 0:
-                time.sleep(10)
-                timeout -= 10
+                time.sleep(1)
+                timeout -= 1
                 if timeout <= 0:
                     statusHandle.next()  # 进行下一阶段
                     return
@@ -453,7 +453,7 @@ class Game(object):
 
     def writePrivate(self, tuin, content):
         self._output.reply_sess(tuin, content)
-        time.sleep(0.5)
+        time.sleep(2.2)
         pass
 
     def uin2name(self, uin):

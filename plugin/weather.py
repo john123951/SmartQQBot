@@ -26,7 +26,7 @@ class Weather:
                 str_data += data['wind'] + " "
                 str_data += data['temperature']
                 str_data += '\n'
-            return str_data
+            return str_data[:-1]
         except:
             return "None found city"
 
