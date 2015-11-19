@@ -89,19 +89,19 @@ class Group:
     def get_member_list(self):
         if not self.member_list:
             result = self.__operator.get_group_info_ext2(self.group_code)
-            if not result or not result["minfo"]:
+            if not result or 'minfo' not in result:
                 return self.member_list
+            if 'cards' in result:
+                d = {}
+                for item in result["cards"]:
+                    uin = str(item["muin"])
+                    d[uin] = item["card"]
+                for member in result["minfo"]:
+                    key = str(member["uin"])
+                    if key in d:
+                        member["nick"] = d[key]
             MemberInfo = namedtuple('MemberInfo', 'nick province gender uin country city')
             member_lst = map(lambda x: MemberInfo(**x), result["minfo"])
-            d = {}
-            if result["cards"]:
-                for item in result["cards"]:
-                    d[item["muin"]] = item["card"]
-            if d:
-                for member in member_lst:
-                    key = str(member.uin)
-                    if key in d:
-                        member.nick = d[key]
             self.member_list = member_lst
         return self.member_list
 
@@ -150,6 +150,8 @@ class Group:
     def callout(self, msg):
         if "机器人" in msg.content:
             logging.info(str(self.gid) + " calling me out, trying to reply....")
+            info = self.get_member_list()
+            print(info)
             self.reply("干嘛（‘·д·）")
             return True
         return False
