@@ -23,6 +23,17 @@ logging.basicConfig(
 )
 
 
+def catch(func):
+    def wrapper(*args, **kw):
+        try:
+            return func(*args, **kw)
+        except Exception as ex:
+            logging.exception(ex)
+        return {}
+
+    return wrapper
+
+
 def get_revalue(html, rex, er, ex):
     v = re.search(rex, html)
 
@@ -190,6 +201,9 @@ class QQ:
         self.psessionid = ret['result']['psessionid']
         self.account = ret['result']['uin']
 
+        # 修改状态
+        self.change_status2(self.default_config.conf.get('global', 'status'))
+
         logging.info("QQ：{0} login successfully, Username：{1}".format(self.account, self.username))
 
     def relogin(self, error_times=0):
@@ -220,7 +234,7 @@ class QQ:
 
         # 调用后进入单次轮询，等待服务器发回状态。
         html = self.req.Post('http://d.web2.qq.com/channel/poll2', {
-            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq,self.client_id)
+            'r': '{{"ptwebqq":"{1}","clientid":{2},"psessionid":"{0}","key":""}}'.format(self.psessionid, self.ptwebqq, self.client_id)
         }, self.default_config.conf.get("global", "connect_referer"))
         logging.debug("check_msg html:  " + str(html))
         try:
@@ -545,6 +559,14 @@ class QQ:
                 logging.warning(
                     "send_sess_msg2_fromGroup: Response Error over 5 times.Exit.reply content:" + str(reply_content))
                 return False
+
+    # 修改在线状态
+    @catch
+    def change_status2(self, status='callme'):
+        url = 'http://d.web2.qq.com/channel/change_status2?newstatus=%s&clientid=%s&psessionid=%s&t=%s' % (status, self.client_id, self.psessionid, time.time())
+        response = self.req.Get(url, self.default_config.conf.get("global", "connect_referer"))
+        rsp_json = json.loads(response)
+        return rsp_json
 
     def op_group_join_req(self, group_uin, req_uin, optype, msg=''):
         """
