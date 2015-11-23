@@ -15,12 +15,14 @@ from Msg import *
 from Notify import *
 from HttpClient import *
 
-logging.basicConfig(
-    filename='smartqq.log',
-    level=logging.INFO,
-    format='%(asctime)s  %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-    datefmt='%a, %d %b %Y %H:%M:%S',
-)
+# logging.basicConfig(
+#     filename='qqclient.log',
+#     level=logging.INFO,
+#     format='%(asctime)s  %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
+#     datefmt='%a, %d %b %Y %H:%M:%S',
+# )
+
+logging.basicConfig(level=logging.INFO)
 
 
 # 过滤器
@@ -65,6 +67,19 @@ def retry(times=5, sleep=2):
     return decorator
 
 
+def cache(func):
+    caches = {}
+
+    def wrap(*args):
+        if args not in caches:
+            logging.info('%s: Eval and set cache......' % func.__name__)
+            caches[args] = func(*args)
+        logging.info('%s: Get value from cache.' % func.__name__)
+        return caches[args]
+
+    return wrap
+
+
 class QQ:
     def __init__(self):
         self.default_config = DefaultConfigs()
@@ -85,6 +100,7 @@ class QQ:
         self.username = ''
         self.account = 0
 
+    @catch
     def __hash_digest(self, uin, ptwebqq):
         """
         计算hash，貌似TX的这个算法会经常变化，暂时不使用
@@ -161,16 +177,14 @@ class QQ:
         sign = get_revalue(html, r'g_login_sig=encodeURIComponent\("(.*?)"\)', 'Get Login Sign Error', 0)
         js_ver = get_revalue(html, r'g_pt_version=encodeURIComponent\("(\d+)"\)', 'Get g_pt_version Error', 1)
         mibao_css = get_revalue(html, r'g_mibao_css=encodeURIComponent\("(.+?)"\)', 'Get g_mibao_css Error', 1)
-
         star_time = date_to_millis(datetime.datetime.utcnow())
 
         error_times = 0
         ret = []
         while True:
             error_times += 1
-            print 'download QR code image...'
-            self.req.Download('https://ssl.ptlogin2.qq.com/ptqrshow?appid={0}&e=0&l=L&s=8&d=72&v=4'.format(appid),
-                              self.qrcode_path)
+            print ('download QR code image...')
+            self.req.Download('https://ssl.ptlogin2.qq.com/ptqrshow?appid={0}&e=0&l=L&s=8&d=72&v=4'.format(appid), self.qrcode_path)
             logging.info("Please scan the downloaded QRCode")
 
             while True:
@@ -178,12 +192,14 @@ class QQ:
                     'https://ssl.ptlogin2.qq.com/ptqrlogin?webqq_type=10&remember_uin=1&login2qq=1&aid={0}&u1=http%3A%2F%2Fw.qq.com%2Fproxy.html%3Flogin2qq%3D1%26webqq_type%3D10&ptredirect=0&ptlang=2052&daid=164&from_ui=1&pttype=1&dumy=&fp=loginerroralert&action=0-0-{1}&mibao_css={2}&t=undefined&g=1&js_type=0&js_ver={3}&login_sig={4}'.format(
                         appid, date_to_millis(datetime.datetime.utcnow()) - star_time, mibao_css, js_ver, sign),
                     initurl)
-                logging.debug("QRCode check html:   " + str(html))
+                logging.debug(u"QRCode check html:   " + str(html))
                 ret = html.split("'")
                 if ret[1] in ('0', '65'):  # 65: QRCode 失效, 0: 验证成功, 66: 未失效, 67: 验证中
                     break
-            if ret[1] == '0' or error_times > 10:
+            if ret[1] == '0':
                 break
+            if error_times > 10:
+                time.sleep(120)  # 继续重新下载验证码，设置等待时间
 
         if ret[1] != '0':
             return
@@ -234,7 +250,7 @@ class QQ:
         # 修改状态
         self.change_status2(self.default_config.conf.get('global', 'status'))
 
-        logging.info("QQ：{0} login successfully, Username：{1}".format(self.account, self.username))
+        logging.info(u"QQ：{0} login successfully, Username：{1}".format(self.account, self.username))
 
     @retry(10)
     def relogin(self):
@@ -320,6 +336,7 @@ class QQ:
             return
 
     # 查询QQ号，通常首次用时0.2s，以后基本不耗时
+    @cache
     def uin_to_account(self, tuin):
         """
         将uin转换成用户昵称
@@ -327,28 +344,14 @@ class QQ:
         :return:str 用户昵称
         """
         uin_str = str(tuin)
-        if uin_str not in self.friend_list:
-            try:
-                logging.info("Requesting the account by uin:    " + str(tuin))
-                info = json.loads(self.req.Get(
-                    'http://s.web2.qq.com/api/get_friend_uin2?tuin={0}&type=1&vfwebqq={1}'.format(uin_str,
-                                                                                                  self.vfwebqq),
-                    self.default_config.conf.get("global", "connect_referer")))
-                logging.debug("uin_request html:    " + str(info))
-                if info['retcode'] != 0:
-                    raise TypeError('uin to account result error')
-                info = info['result']
-                self.friend_list[uin_str] = info['account']
-
-            except BaseException, error:
-                logging.warning(error)
-
-        assert isinstance(uin_str, str), "tuin is not string"
-        try:
-            return self.friend_list[uin_str]
-        except KeyError, e:
-            logging.warning(e)
-            logging.debug("now uin list:    " + str(self.friend_list))
+        logging.info("Requesting the account by uin:    " + str(tuin))
+        info = json.loads(self.req.Get('http://s.web2.qq.com/api/get_friend_uin2?tuin={0}&type=1&vfwebqq={1}'.format(uin_str, self.vfwebqq),
+                                       self.default_config.conf.get("global", "connect_referer")))
+        logging.debug("uin_request html:    " + str(info))
+        if info['retcode'] != 0:
+            raise TypeError('uin to account result error')
+        info = info['result']
+        return info['account']
 
     # 获取自己的信息
     @catch

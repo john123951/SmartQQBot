@@ -31,7 +31,7 @@ class Pm:
             "repeat",
             "callout",
         ]
-        logging.info(str(self.tid) + "私聊已激活, 当前执行顺序： " + str(self.process_order))
+        logging.info(str(self.tid) + u"私聊已激活, 当前执行顺序： " + str(self.process_order))
 
     def update_config(self):
         use_private_config = bool(self.private_config.conf.getint("pm", "use_private_config"))
@@ -54,7 +54,7 @@ class Pm:
                         self.msg_list.append(msg)
                         return func
             except ConfigParser.NoOptionError as er:
-                logging.warning(er, "没有找到" + func + "功能的对应设置，请检查共有配置文件是否正确设置功能参数")
+                logging.warning(er, u"没有找到" + func + u"功能的对应设置，请检查共有配置文件是否正确设置功能参数")
         self.msg_list.append(msg)
 
     def reply(self, reply_content):

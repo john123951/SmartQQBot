@@ -13,13 +13,6 @@ from plugin.weather import Weather
 from plugin.Turing import Turing
 from plugin.yiyan import yiyan
 
-logging.basicConfig(
-    filename='smartqq.log',
-    level=logging.DEBUG,
-    format='%(asctime)s  %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-    datefmt='%a, %d %b %Y %H:%M:%S',
-)
-
 
 # logging.basicConfig(level=logging.DEBUG)
 
@@ -56,7 +49,7 @@ class Group:
             "command_1arg",
         ]
         self.__game_handler = None
-        logging.info(str(self.gid) + "群已激活, 当前执行顺序： " + str(self.process_order))
+        logging.info(str(self.gid) + u"群已激活, 当前执行顺序： " + str(self.process_order))
         self.tucao_load()
 
     def update_config(self):
@@ -144,12 +137,11 @@ class Group:
         result = ""
         for key in self.tucao_dict:
             result += "关键字：{0}      回复：{1}\n".format(key, " / ".join(self.tucao_dict[key]))
-        logging.info("Replying the list of tucao")
         self.reply(result)
 
     def callout(self, msg):
         if "机器人" in msg.content:
-            logging.info(str(self.gid) + " calling me out, trying to reply....")
+            # logging.info(str(self.gid) + " calling me out, trying to reply....")
             self.reply("干嘛（‘·д·）")
             return True
         return False
@@ -157,7 +149,7 @@ class Group:
     def repeat(self, msg):
         if len(self.msg_list) > 0 and self.msg_list[-1].content == msg.content:
             if str(msg.content).strip() not in ("", " ", "[图片]", "[表情]"):
-                logging.info(str(self.gid) + " repeating, trying to reply " + str(msg.content))
+                # logging.info(str(self.gid) + " repeating, trying to reply " + str(msg.content))
                 self.reply(msg.content)
                 return True
         return False
@@ -165,7 +157,7 @@ class Group:
     def tucao(self, msg):
         match = re.match(r'^(?:!|！)(learn|delete)(?:\s?){(.+)}(?:\s?){(.+)}', msg.content)
         if match:
-            logging.info("tucao command detected.")
+            # logging.info("tucao command detected.")
             command = str(match.group(1)).decode('utf8')
             key = str(match.group(2)).decode('utf8')
             value = str(match.group(3)).decode('utf8')
@@ -187,7 +179,7 @@ class Group:
         else:
             for key in self.tucao_dict.keys():
                 if str(key) in msg.content and self.tucao_dict[key]:
-                    logging.info("tucao pattern detected, replying...")
+                    # logging.info("tucao pattern detected, replying...")
                     self.reply(random.choice(self.tucao_dict[key]))
                     return True
         return False
@@ -197,7 +189,7 @@ class Group:
             tucao_file_path = str(self.global_config.conf.get('global', 'tucao_path')) + str(self.gid) + ".tucao"
             with open(tucao_file_path, "w+") as tucao_file:
                 cPickle.dump(self.tucao_dict, tucao_file)
-            logging.info("tucao saved. Now tucao list:  {0}".format(str(self.tucao_dict)))
+                # logging.info("tucao saved. Now tucao list:  {0}".format(str(self.tucao_dict)))
         except Exception:
             logging.error("Fail to save tucao.")
             raise IOError("Fail to save tucao.")
@@ -214,7 +206,7 @@ class Group:
         with open(tucao_file_name, "r") as tucao_file:
             try:
                 self.tucao_dict = cPickle.load(tucao_file)
-                logging.info("tucao loaded. Now tucao list:  {0}".format(str(self.tucao_dict)))
+                # logging.info("tucao loaded. Now tucao list:  {0}".format(str(self.tucao_dict)))
             except EOFError:
                 logging.info("tucao file is empty.")
                 # except Exception as er:
@@ -224,7 +216,7 @@ class Group:
     def follow(self, msg):
         match = re.match(r'^(?:!|！)(follow|unfollow) (\d+|me)', msg.content)
         if match:
-            logging.info("following...")
+            # logging.info("following...")
             command = str(match.group(1))
             target = str(match.group(2))
             if target == 'me':
@@ -247,16 +239,13 @@ class Group:
     def weather(self, msg):
         match = re.match(ur'^(weather|天气) (\w+|[\u4e00-\u9fa5]+)', msg.content)
         if match:
-            logging.info("查询天气...")
-            print msg.content
+            # logging.info(u"查询天气...")
             command = match.group(1)
             city = match.group(2)
-            logging.info(msg.content)
-            print city
+            # logging.info(msg.content)
             if command == 'weather' or command == u'天气':
                 query = Weather()
                 info = query.getWeatherOfCity(city)
-                logging.info(str(info))
                 self.reply(str(info))
                 return True
         return False
@@ -265,17 +254,15 @@ class Group:
         match = re.match(ur'^(ask|问) (\w+|[\u4e00-\u9fa5]+)', msg.content)
         if match:
             # logging.info("问答测试...")
-            print msg.content
             command = match.group(1)
             info = match.group(2)
             # logging.info("info:")
-            logging.info(msg.content)
-            # print info
+            # logging.info(msg.content)
             if command == 'ask' or command == u'问':
                 # self.reply("我开始查询" + city + "的天气啦")
                 query = Turing()
                 info = query.getReply(info)
-                logging.info(str(info))
+                # logging.info(str(info))
                 self.reply(str(info))
                 return True
         return False
