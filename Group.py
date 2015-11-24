@@ -5,6 +5,7 @@
 
 import cPickle
 from collections import namedtuple
+
 from QQLogin import *
 from Configs import *
 from Msg import *
@@ -43,8 +44,8 @@ class Group:
             "yiyan",
             "follow",
             "tucao",
-            "repeat",
             "callout",
+            "repeat",
             "command_0arg",
             "command_1arg",
         ]

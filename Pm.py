@@ -3,12 +3,9 @@
 # Code by Yinzo:        https://github.com/Yinzo
 # Origin repository:    https://github.com/Yinzo/SmartQQBot
 
-import threading
-
 from QQLogin import *
 from Configs import *
 from Msg import *
-from HttpClient import *
 
 
 class Pm:

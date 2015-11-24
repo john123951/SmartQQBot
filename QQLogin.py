@@ -15,6 +15,7 @@ from Msg import *
 from Notify import *
 from HttpClient import *
 
+
 # logging.basicConfig(
 #     filename='qqclient.log',
 #     level=logging.INFO,
@@ -85,11 +86,6 @@ class QQ:
         self.default_config = DefaultConfigs()
         self.req = HttpClient()
 
-        # cache
-        self.friend_list = {}
-        self.__groupSig_list = {}
-        self.__self_info = {}
-
         self.msg_id = int(random.randint(1111, 8888) * 10000)
         self.client_id = int(random.uniform(111111, 888888))
         self.ptwebqq = ''
@@ -133,21 +129,17 @@ class QQ:
             V += N[U[T] & 15]
         return V
 
+    @cache
     @catch
     def __getGroupSig(self, guin, tuin, service_type=0):
-        key = '%s --> %s' % (guin, tuin)
-        if key not in self.__groupSig_list:
-            url = "http://d.web2.qq.com/channel/get_c2cmsg_sig2?id=%s&to_uin=%s&service_type=%s&clientid=%s&psessionid=%s&t=%d" % (
-                guin, tuin, service_type, self.client_id, self.psessionid, int(time.time() * 100))
-            response = self.req.Get(url)
-            rsp_json = json.loads(response)
-            if rsp_json["retcode"] != 0:
-                return ""
-            sig = rsp_json["result"]["value"]
-            self.__groupSig_list[key] = sig
-        if key in self.__groupSig_list:
-            return self.__groupSig_list[key]
-        return ""
+        url = "http://d.web2.qq.com/channel/get_c2cmsg_sig2?id=%s&to_uin=%s&service_type=%s&clientid=%s&psessionid=%s&t=%d" % (
+            guin, tuin, service_type, self.client_id, self.psessionid, int(time.time() * 100))
+        response = self.req.Get(url)
+        rsp_json = json.loads(response)
+        if rsp_json["retcode"] != 0:
+            return ""
+        sig = rsp_json["result"]["value"]
+        return sig
 
     def login_by_qrcode(self):
         def get_revalue(html, rex, er, ex):
@@ -335,7 +327,7 @@ class QQ:
             logging.warning("unknown retcode " + str(ret_code))
             return
 
-    # 查询QQ号，通常首次用时0.2s，以后基本不耗时
+    # 查询QQ号昵称
     @cache
     def uin_to_account(self, tuin):
         """
@@ -354,6 +346,7 @@ class QQ:
         return info['account']
 
     # 获取自己的信息
+    @cache
     @catch
     def get_self_info2(self):
         """
@@ -362,14 +355,12 @@ class QQ:
         {"retcode":0,"result":{"birthday":{"month":1,"year":1989,"day":30},"face":555,"phone":"","occupation":"","allow":1,"college":"","uin":2609717081,"blood":0,"constel":1,"lnick":"","vfwebqq":"68b5ff5e862ac589de4fc69ee58f3a5a9709180367cba3122a7d5194cfd43781ada3ac814868b474","homepage":"","vip_info":0,"city":"青岛","country":"中国","personal":"","shengxiao":5,"nick":"要有光","email":"","province":"山东","account":2609717081,"gender":"male","mobile":""}}
         :return:dict
         """
-        if not self.__self_info:
-            url = "http://s.web2.qq.com/api/get_self_info2"
-            response = self.req.Get(url)
-            rsp_json = json.loads(response)
-            if rsp_json["retcode"] != 0:
-                return {}
-            self.__self_info = rsp_json["result"]
-        return self.__self_info
+        url = "http://s.web2.qq.com/api/get_self_info2"
+        response = self.req.Get(url)
+        rsp_json = json.loads(response)
+        if rsp_json["retcode"] != 0:
+            return {}
+        return rsp_json["result"]
 
     # 获取好友详情信息
     @catch
