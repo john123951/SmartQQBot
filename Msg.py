@@ -4,7 +4,6 @@
 # Origin repository:    https://github.com/Yinzo/SmartQQBot
 
 class Msg:
-
     def __init__(self, json_input):
         self.poll_type = json_input['poll_type']
         self.from_uin = json_input['value']['from_uin']
@@ -16,7 +15,6 @@ class Msg:
 
 
 class MsgWithContent(Msg):
-
     def __init__(self, json_input):
         Msg.__init__(self, json_input)
         self.raw_content = json_input['value']['content']
@@ -41,9 +39,9 @@ class MsgWithContent(Msg):
 
         return msgtxt
 
+
 # 临时会话消息
 class SessMsg(MsgWithContent):
-
     def __init__(self, json_input):
         MsgWithContent.__init__(self, json_input)
         self.service_type = json_input['value']['service_type']
@@ -52,14 +50,14 @@ class SessMsg(MsgWithContent):
         self.flags = json_input['value']['flags']
 
 
+# 私聊消息
 class PmMsg(MsgWithContent):
-
     def __init__(self, json_input):
         MsgWithContent.__init__(self, json_input)
 
 
+# 群消息
 class GroupMsg(MsgWithContent):
-
     def __init__(self, json_input):
         MsgWithContent.__init__(self, json_input)
         self.group_code = json_input['value']['group_code']
