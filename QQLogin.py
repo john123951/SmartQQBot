@@ -131,7 +131,7 @@ class QQ:
 
     @cache
     @catch
-    def __getGroupSig(self, guin, tuin, service_type=0):
+    def getGroupSig(self, guin, tuin, service_type=0):
         url = "http://d.web2.qq.com/channel/get_c2cmsg_sig2?id=%s&to_uin=%s&service_type=%s&clientid=%s&psessionid=%s&t=%d" % (
             guin, tuin, service_type, self.client_id, self.psessionid, int(time.time() * 100))
         response = self.req.Get(url)
@@ -327,13 +327,13 @@ class QQ:
             logging.warning("unknown retcode " + str(ret_code))
             return
 
-    # 查询QQ号昵称
+    # 查询QQ号
     @cache
     def uin_to_account(self, tuin):
         """
-        将uin转换成用户昵称
+        将uin转换成用户QQ号
         :param tuin:
-        :return:str 用户昵称
+        :return:str 用户QQ号
         """
         uin_str = str(tuin)
         logging.info("Requesting the account by uin:    " + str(tuin))
@@ -414,7 +414,7 @@ class QQ:
         return rsp_json["result"]
 
     # 发送群消息
-    @retry(5)
+    @retry(3)
     def send_qun_msg(self, guin, reply_content):
         self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
@@ -435,7 +435,7 @@ class QQ:
         return rsp_json
 
     # 发送私密消息
-    @retry(5)
+    @retry(3)
     def send_buddy_msg(self, tuin, reply_content):
         self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
@@ -456,14 +456,14 @@ class QQ:
         return rsp_json
 
     # 发送临时消息
-    @retry(5)
+    @retry(3)
     def send_sess_msg2(self, tuin, reply_content, group_sig, service_type=0):
         self.msg_id += 1
         fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
         req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
         data = (
             ('r',
-             '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
+             '{{"to":{0},"content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]","face":570,"clientid":"{1}","msg_id":{2},"psessionid":"{3}","group_sig":"{5}","service_type":{6}}}'.format(
                  tuin,
                  self.client_id,
                  self.msg_id,
@@ -472,10 +472,10 @@ class QQ:
                  group_sig,
                  service_type)
              ),
-            ('clientid', self.client_id),
-            ('psessionid', self.psessionid),
-            ('group_sig', group_sig),
-            ('service_type', service_type)
+            # ('clientid', self.client_id),
+            # ('psessionid', self.psessionid),
+            # ('group_sig', group_sig),
+            # ('service_type', service_type)
         )
         rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
         rsp_json = json.loads(rsp)
@@ -483,37 +483,6 @@ class QQ:
             raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
         logging.info("Reply successfully.")
         logging.debug("Reply response: " + str(rsp))
-        return rsp_json
-
-    # 主动发送临时消息
-    @retry(5)
-    def send_sess_msg2_fromGroup(self, guin, tuin, reply_content, service_type=0):
-        self.msg_id += 1
-        group_sig = self.__getGroupSig(guin, tuin, service_type)
-        fix_content = str(reply_content.replace("\\", "\\\\\\\\").replace("\n", "\\\\n").replace("\t", "\\\\t")).decode("utf-8")
-        req_url = "http://d.web2.qq.com/channel/send_sess_msg2"
-        data = (
-            ('r',
-             '{{"to":{0}, "face":594, "content":"[\\"{4}\\", [\\"font\\", {{\\"name\\":\\"Arial\\", \\"size\\":\\"10\\", \\"style\\":[0, 0, 0], \\"color\\":\\"000000\\"}}]]", "clientid":"{1}", "msg_id":{2}, "psessionid":"{3}", "group_sig":"{5}", "service_type":{6}}}'.format(
-                 tuin,
-                 self.client_id,
-                 self.msg_id,
-                 self.psessionid,
-                 fix_content,
-                 group_sig,
-                 service_type)
-             ),
-            ('clientid', self.client_id),
-            ('psessionid', self.psessionid),
-            ('group_sig', group_sig),
-            ('service_type', service_type)
-        )
-        rsp = self.req.Post(req_url, data, self.default_config.conf.get("global", "connect_referer"))
-        rsp_json = json.loads(rsp)
-        if rsp_json['retcode'] != 0:
-            raise ValueError("reply sess chat error" + str(rsp_json['retcode']))
-        logging.info("send_sess_msg2_fromGroup: Reply successfully.")
-        logging.debug("send_sess_msg2_fromGroup: Reply response: " + str(rsp))
         return rsp_json
 
     # 修改在线状态

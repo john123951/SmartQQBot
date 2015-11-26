@@ -1,9 +1,14 @@
+# -*- coding:utf-8 -*-
 import cookielib, urllib, urllib2, socket
 
 
 class HttpClient:
-    __cookie = cookielib.CookieJar()
-    __req = urllib2.build_opener(urllib2.HTTPCookieProcessor(__cookie))
+    cookie = cookielib.CookieJar()
+    cookieHandler = urllib2.HTTPCookieProcessor(cookie)
+    proxyHandler = urllib2.ProxyHandler(proxies={'http': 'localhost:8888'})
+    httpHandler = urllib2.HTTPHandler(debuglevel=0)  # 打印调试信息
+    httpsHandler = urllib2.HTTPSHandler(debuglevel=0)  # 打印调试信息
+    __req = urllib2.build_opener(cookieHandler, httpHandler, httpsHandler)
     __req.addheaders = [
         ('Accept', 'application/javascript, */*;q=0.8'),
         ('User-Agent',
@@ -39,7 +44,7 @@ class HttpClient:
     #    return urllib.quote(data)
 
     def getCookie(self, key):
-        for c in self.__cookie:
+        for c in self.cookie:
             if c.name == key:
                 return c.value
         return ''
@@ -49,6 +54,6 @@ class HttpClient:
                               domain_specified=False, domain_initial_dot=False, path='/', path_specified=True,
                               secure=False, expires=None, discard=True, comment=None, comment_url=None,
                               rest={'HttpOnly': None}, rfc2109=False)
-        self.__cookie.set_cookie(ck)
+        self.cookie.set_cookie(ck)
         # self.__cookie.clear() clean cookie
         # vim : tabstop=2 shiftwidth=2 softtabstop=2 expandtab

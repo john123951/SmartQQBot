@@ -40,7 +40,7 @@ class Group:
         self.process_order = [
             "game",
             "weather",
-            'ask',
+            "ask",
             "yiyan",
             "follow",
             "tucao",
@@ -48,6 +48,7 @@ class Group:
             "repeat",
             "command_0arg",
             "command_1arg",
+            "test"
         ]
         self.__game_handler = None
         logging.info(str(self.gid) + u"群已激活, 当前执行顺序： " + str(self.process_order))
@@ -104,8 +105,12 @@ class Group:
         return self.__operator.send_qun_msg(self.guin, reply_content)
 
     # 发送临时消息给群成员
-    def reply_sess(self, tuin, reply_content):
-        self.__operator.send_sess_msg2_fromGroup(self.guin, tuin, reply_content)
+    def reply_sess(self, tuin, reply_content, service_type=0):
+        # 获取好友QQ号
+        qqNumber = self.__operator.uin_to_account(tuin)
+        group_sig = self.__operator.getGroupSig(self.guin, tuin, service_type)
+        response = self.__operator.send_sess_msg2(tuin, reply_content, group_sig, service_type)
+        return response
 
     def command_0arg(self, msg):
         # webqq接受的消息会以空格结尾
@@ -306,3 +311,8 @@ class Group:
                 self.reply(info['hitokoto'])
                 return True
         return False
+
+    def test(self, msg):
+        match = re.match(ur'^test.*', msg.content)
+        if match:
+            self.reply_sess(msg.send_uin, msg.content)
